@@ -1,0 +1,13 @@
+node_modules/
+.env
+data/
+
+# Client and research material stays off GitHub
+*.pdf
+*.docx
+*.xlsx
+
+# Local editor and tool settings
+.claude/
+.DS_Store
+Thumbs.db

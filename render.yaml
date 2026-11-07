@@ -1,0 +1,28 @@
+# Render Blueprint: Render reads this file to set up the hosted app.
+# Secrets marked "sync: false" are typed into Render's dashboard and never stored in this repository.
+services:
+  - type: web
+    name: viralyst-insta-audit
+    runtime: node
+    region: singapore
+    # A persistent disk needs a paid plan. Without it, reports and follower tracking are lost on each restart.
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: APP_PASSWORD
+        sync: false
+      - key: APIFY_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: viralyst-data
+      mountPath: /var/data
+      sizeGB: 1

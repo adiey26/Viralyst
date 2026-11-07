@@ -1,0 +1,19 @@
+{
+  "name": "insta-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Compare two public Instagram accounts and explain what is working and why.",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "snapshot": "node --disable-warning=ExperimentalWarning bin/snapshot.js",
+    "test": "node --disable-warning=ExperimentalWarning --test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "ffmpeg-static": "^5.3.0"
+  }
+}
