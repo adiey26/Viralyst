@@ -1016,6 +1016,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--brand); box-shad
 .login-card { text-align: left; }
 .login-card .pill { width: 100%; margin-top: 4px; }
 
+/* Showcase on GitHub Pages: no server, so hide controls that need one */
+.static-site .check-input, .static-site .toggle, .static-site #logout { display: none !important; }
+
 /* Save as PDF: every tab, no navigation or forms */
 @media print {
   :root {

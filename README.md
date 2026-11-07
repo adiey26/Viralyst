@@ -72,6 +72,16 @@ Instagram's terms restrict automated collection, so review that risk before usin
 
 Reports and follower history are stored in the `data` folder on this computer. Commenter usernames are not saved, though comment text is.
 
+## Showcase site on GitHub Pages
+
+GitHub Pages shows a free showcase of the site at https://adiey26.github.io/Viralyst/. It has the full home page and the sample report. Live audits need a server, so on the showcase the audit form emails a request to Viralyst instead.
+
+The showcase is built from `public/` into `index.html` and `site/`. After changing anything in `public/`, rebuild it and push:
+
+```bash
+npm run build:pages
+```
+
 ## Put it online with GitHub and Render
 
 GitHub stores the code. Render runs it. Every time you push to GitHub, Render updates the site.

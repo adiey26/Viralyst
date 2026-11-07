@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "snapshot": "node --disable-warning=ExperimentalWarning bin/snapshot.js",
-    "test": "node --disable-warning=ExperimentalWarning --test"
+    "build:pages": "node --disable-warning=ExperimentalWarning bin/build-pages.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",

@@ -736,7 +736,31 @@ function renderReport(report, tab = activeTab) {
 
 // ---------- Site pages ----------
 
+// The GitHub Pages showcase has no server, so it answers from the bundled sample report instead.
+const STATIC_SITE = Boolean(document.querySelector('meta[name="viralyst-static"]'));
+const CONTACT_EMAIL = 'connect.viralyst@gmail.com';
+let sampleReport = null;
+
+async function staticApi(url, options = {}) {
+  sampleReport ??= await fetch('site/sample-report.json').then((response) => response.json());
+  const summary = {
+    id: sampleReport.id,
+    createdAt: sampleReport.createdAt,
+    mode: sampleReport.mode,
+    handles: sampleReport.accounts.map((account) => account.profile.handle),
+    overall: sampleReport.score.overall,
+  };
+  if (url === '/api/status') return { apify: false, anthropic: false, static: true };
+  if (url === '/api/reports') return [summary];
+  if (url === '/api/audit') return { jobId: 'sample' };
+  if (url === '/api/jobs/sample') return { state: 'done', reportId: sampleReport.id };
+  if (url === `/api/reports/${sampleReport.id}` && !options.method) return sampleReport;
+  if (url.endsWith('/inputs')) throw new Error('Entering private Insights works in the full Viralyst app.');
+  throw new Error('This is available in the full Viralyst app.');
+}
+
 async function api(url, options) {
+  if (STATIC_SITE) return staticApi(url, options);
   const response = await fetch(url, options);
   if (response.status === 401) {
     window.location.href = '/login';
@@ -765,6 +789,14 @@ async function loadStatus() {
   $('dot-anthropic').classList.toggle('on', status.anthropic);
   $('state-apify').textContent = label(status.apify);
   $('state-anthropic').textContent = label(status.anthropic);
+  if (STATIC_SITE) {
+    document.body.classList.add('static-site');
+    document.querySelectorAll('[data-nav="settings"]').forEach((link) => { link.hidden = true; });
+    $('setup-warning').hidden = true;
+    $('home-status').textContent = '';
+    $('run').textContent = 'Request my audit';
+    return;
+  }
   $('settings-dot').hidden = status.apify && status.anthropic;
   $('keys-form').hidden = Boolean(status.hosted);
   $('hosted-keys-note').hidden = !status.hosted;
@@ -831,6 +863,13 @@ function showError(message) {
 
 function renderReview() {
   const values = wizardValues();
+  if (STATIC_SITE) {
+    $('review').replaceChildren(h('dl', {},
+      h('dt', {}, 'Company'), h('dd', {}, values.a),
+      h('dt', {}, 'Competitors'), h('dd', {}, values.competitors.join(', ')),
+      h('dt', {}, 'What happens next'), h('dd', {}, 'Your email app opens with this request ready to send to Viralyst. We run the audit and send you the report.')));
+    return;
+  }
   const accounts = 1 + values.competitors.length;
   const low = (accounts * 0.4).toFixed(2);
   const high = (accounts * 0.7).toFixed(2);
@@ -942,8 +981,25 @@ async function runJob(body) {
   }
 }
 
+/** On the showcase, a request is emailed to Viralyst with everything the visitor entered. */
+function requestByEmail(values) {
+  const lines = [
+    `Account to audit: ${values.a}`,
+    `Competitors: ${values.competitors.join(', ')}`,
+    values.goal && `Main goal: ${values.goal}`,
+    values.idealCustomer && `Ideal customer: ${values.idealCustomer}`,
+    values.markets && `Markets: ${values.markets}`,
+    values.notes && `Notes: ${values.notes}`,
+  ].filter(Boolean);
+  const subject = `Instagram audit request: ${values.a}`;
+  const body = `Hi Viralyst,\n\nPlease audit this account.\n\n${lines.join('\n')}\n\nThanks`;
+  window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  $('review').append(h('p', { class: 'success' }, `Your email app should open with the request ready to send. If it doesn't, email ${CONTACT_EMAIL} or DM @viralyst.t on Instagram.`));
+}
+
 $('audit-form').addEventListener('submit', (event) => {
   event.preventDefault();
+  if (STATIC_SITE) return requestByEmail(wizardValues());
   if (!status.apify) return showError('Real audits need an Apify token. Add it in Settings first.');
   runJob(wizardValues());
   return null;
