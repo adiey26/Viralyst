@@ -258,7 +258,7 @@ export function friendlyError(error) {
   if (error instanceof Anthropic.BadRequestError && /credit balance/i.test(error.message)) {
     return 'Your Anthropic account has no credit. Add credit under Billing in the Claude Console.';
   }
-  if (error instanceof Anthropic.AuthenticationError) return 'Anthropic rejected your API key. Press Change keys and paste a key from the Claude Console.';
+  if (error instanceof Anthropic.AuthenticationError) return 'Anthropic rejected your API key. Open Settings and paste a key from the Claude Console.';
   if (error instanceof Anthropic.PermissionDeniedError) return 'Your Anthropic key does not have access to this model.';
   if (error instanceof Anthropic.RateLimitError) return 'Anthropic rate limit reached. Please try again in a few minutes.';
   if (error instanceof Anthropic.BadRequestError) return `Anthropic rejected the request: ${error.message}`;

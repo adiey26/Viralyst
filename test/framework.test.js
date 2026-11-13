@@ -6,6 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import ffmpegPath from 'ffmpeg-static';
 import { ANALYSIS_SCHEMA, cleanCheckpoints } from '../src/analysis.js';
+import { normalizeProfile } from '../src/apify.js';
 import { computeAutoChecks } from '../src/checks.js';
 import { analyzeVideo, countCuts, isAllowedMediaUrl, parseStreamInfo, sampleTimes } from '../src/frames.js';
 import { AI_CHECK_IDS, ALL_CHECKS, PILLARS, ratingFor, scoreFromNumber } from '../src/framework.js';
@@ -317,4 +318,29 @@ test('creator mode reweights pillars to 100 and leaves out business-only pillars
   const creatorScore = computeScore({ audienceType: 'creator', checks: { '13.1': { score: 0 }, '4.1': { score: 80 } } });
   assert.equal(creatorScore.overall, 80, 'a tracking check does not count against a creator');
   assert.equal(computeScore({ checks: { '13.1': { score: 0 }, '4.1': { score: 80 } } }).overall, Math.round((80 * 14) / 16));
+});
+
+test('entered Insights numbers must be possible values', () => {
+  assert.deepEqual(validateInput('2.1', { value: -20 }), { value: -20, note: '' });
+  assert.throws(() => validateInput('2.1', { value: -99999 }), /between -100 and 10,000%/);
+  const skip = ALL_CHECKS.find((item) => item.input?.label === 'Typical skip rate');
+  assert.throws(() => validateInput(skip.id, { value: 140 }), /between 0 and 100%/);
+  assert.throws(() => validateInput('9.1', { value: -3 }), /between 0 and 1,000 per 1,000/);
+  for (const item of ALL_CHECKS.filter((check) => check.input)) {
+    assert.ok(validateInput(item.id, { value: 10 }), `${item.id} accepts a normal value`);
+  }
+});
+
+test('suggestions fall back to collaborators, tags and mentions when Instagram gives no similar accounts', () => {
+  const profile = normalizeProfile({
+    username: 'Shop',
+    latestPosts: [
+      { coauthorProducers: [{ username: 'Partner_One' }], mentions: ['shop', 'partner_one'] },
+      { coauthorProducers: [{ username: 'partner_one' }], taggedUsers: [{ username: 'friend.two' }], mentions: ['bad handle!'] },
+    ],
+  });
+  assert.equal(profile.suggestionSource, 'connections');
+  assert.deepEqual(profile.relatedProfiles.map((p) => [p.handle, p.posts]), [['partner_one', 2], ['friend.two', 1]]);
+  assert.equal(normalizeProfile({ username: 'quiet', latestPosts: [] }).suggestionSource, null);
+  assert.equal(normalizeProfile({ username: 'big', relatedProfiles: [{ username: 'Peer' }] }).suggestionSource, 'instagram');
 });

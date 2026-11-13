@@ -21,11 +21,14 @@ const { runDemoAudit, loadReport } = await import('../src/audit.js');
 try {
   const demo = await runDemoAudit({ timezone: 'Asia/Kolkata', brief: { goal: 'Sales', idealCustomer: '', markets: '' } });
   const report = loadReport(demo.id);
+  const creatorDemo = await runDemoAudit({ timezone: 'Asia/Kolkata', audienceType: 'creator', brief: { goal: 'Brand deals', idealCustomer: '', markets: '' } });
+  const creatorReport = loadReport(creatorDemo.id);
 
   rmSync(SITE, { recursive: true, force: true });
   mkdirSync(SITE, { recursive: true });
   for (const file of ['app.js', 'charts.js', 'style.css', 'favicon.svg']) copyFileSync(path.join(PUBLIC, file), path.join(SITE, file));
   writeFileSync(path.join(SITE, 'sample-report.json'), JSON.stringify(report));
+  writeFileSync(path.join(SITE, 'sample-report-creator.json'), JSON.stringify(creatorReport));
 
   // GitHub Pages serves the site from a sub-path, so every asset link becomes relative.
   let html = readFileSync(path.join(PUBLIC, 'index.html'), 'utf8')
@@ -38,7 +41,7 @@ try {
   // Tells GitHub Pages to serve the files as they are, without its Jekyll processing.
   writeFileSync(path.join(ROOT, '.nojekyll'), '');
 
-  console.log(`Built the showcase: index.html and site/ (sample report ${report.id}).`);
+  console.log(`Built the showcase: index.html and site/ (sample reports ${report.id} and ${creatorReport.id}).`);
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

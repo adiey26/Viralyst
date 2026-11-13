@@ -327,7 +327,7 @@ async function suggestAccounts(res, handleInput) {
   }
   try {
     const profile = await fetchSnapshot(handleName);
-    return send(res, 200, { handle: profile.handle, category: profile.category, suggestions: profile.relatedProfiles ?? [] });
+    return send(res, 200, { handle: profile.handle, category: profile.category, source: profile.suggestionSource ?? null, suggestions: profile.relatedProfiles ?? [] });
   } catch (error) {
     return send(res, 400, { error: error.message });
   }

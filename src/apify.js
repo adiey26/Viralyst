@@ -13,7 +13,7 @@ export class ScrapeError extends Error {}
 
 const STATUS_MESSAGES = {
   400: 'Apify rejected the request as invalid.',
-  401: 'Apify rejected your token. Press Change keys and paste your Personal API token from Apify again.',
+  401: 'Apify rejected your token. Open Settings and paste your Personal API token from Apify again.',
   402: 'Your Apify account is out of credit or over its usage limit.',
   403: 'Your Apify token does not have permission to run this scraper.',
   408: 'The scrape took longer than Apify allows (5 minutes). Try lowering POSTS_PER_ACCOUNT.',
@@ -122,6 +122,30 @@ export function normalizePost(raw, { fromReelScraper = false, inLatest = false }
   };
 }
 
+const HANDLE = /^[a-z0-9._]{1,30}$/;
+
+/**
+ * Accounts to suggest for comparison. Instagram's own "similar accounts" list is used when the
+ * scraper returns it; otherwise the accounts this profile most often collaborates with, tags or mentions.
+ */
+function suggestedProfiles(raw) {
+  const own = String(raw.username ?? '').toLowerCase();
+  const related = (raw.relatedProfiles ?? []).filter((p) => p?.username && !p.is_private).slice(0, 12)
+    .map((p) => ({ handle: String(p.username).toLowerCase(), fullName: p.full_name ?? '', verified: Boolean(p.is_verified) }));
+  if (related.length) return { relatedProfiles: related, suggestionSource: 'instagram' };
+  const counts = new Map();
+  for (const post of raw.latestPosts ?? []) {
+    const names = new Set([
+      ...(post.coauthorProducers ?? []).map((u) => u?.username),
+      ...(post.taggedUsers ?? []).map((u) => u?.username),
+      ...(post.mentions ?? []),
+    ].map((name) => String(name ?? '').toLowerCase().replace(/^@/, '')));
+    for (const name of names) if (HANDLE.test(name) && name !== own) counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const connected = [...counts].sort((x, y) => y[1] - x[1]).slice(0, 12).map(([handle, posts]) => ({ handle, fullName: '', verified: false, posts }));
+  return { relatedProfiles: connected, suggestionSource: connected.length ? 'connections' : null };
+}
+
 export function normalizeProfile(raw) {
   return {
     handle: raw.username.toLowerCase(),
@@ -137,8 +161,7 @@ export function normalizeProfile(raw) {
     externalUrl: raw.externalUrl ?? null,
     country: raw.about?.country ?? null,
     picUrl: raw.profilePicUrlHD ?? raw.profilePicUrl ?? null,
-    relatedProfiles: (raw.relatedProfiles ?? []).filter((p) => p?.username && !p.is_private).slice(0, 12)
-      .map((p) => ({ handle: String(p.username).toLowerCase(), fullName: p.full_name ?? '', verified: Boolean(p.is_verified) })),
+    ...suggestedProfiles(raw),
     url: `https://www.instagram.com/${raw.username}/`,
   };
 }

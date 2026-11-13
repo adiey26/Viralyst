@@ -3,6 +3,18 @@ import { CHECK_BY_ID, modeOf, pillarsFor, RATINGS, ratingFor, scoreFromNumber } 
 const NOTE_LIMIT = 500;
 
 /** Checks auditor input against the framework and returns the clean value. Null clears an entry. */
+// Values that can't happen (growth below -100%, a skip rate over 100%) are refused rather than scored.
+const RANGE_BY_LABEL = {
+  'Follower growth over 90 days': { min: -100, max: 10000 },
+  'Accounts engaged ÷ followers, 30 days': { min: 0, max: 10000 },
+  'Average watch time ÷ Reel length': { min: 0, max: 1000 },
+  'Story views ÷ followers': { min: 0, max: 1000 },
+};
+
+export function inputRange(input) {
+  return RANGE_BY_LABEL[input.label] ?? (input.unit === '%' ? { min: 0, max: 100 } : { min: 0, max: 1000 });
+}
+
 export function validateInput(id, entry) {
   const item = CHECK_BY_ID.get(id);
   if (!item) throw new Error(`Unknown checkpoint ${id}.`);
@@ -11,6 +23,8 @@ export function validateInput(id, entry) {
   if (entry?.value !== undefined && entry.value !== null && entry.value !== '') {
     const value = Number(entry.value);
     if (!item.input || !Number.isFinite(value)) throw new Error(`${item.title} needs a number.`);
+    const { min, max } = inputRange(item.input);
+    if (value < min || value > max) throw new Error(`${item.input.label} should be between ${min} and ${max.toLocaleString('en-US')}${item.input.unit === '%' ? '%' : ` ${item.input.unit}`}.`);
     return { value, note };
   }
   if (entry?.rating && RATINGS[entry.rating]) return { rating: entry.rating, note };

@@ -792,7 +792,12 @@ function renderSuggestions(report) {
   const fresh = (report.accounts[0].profile.relatedProfiles ?? []).filter((item) => !known.has(item.handle.toLowerCase()));
   if (!fresh.length) return null;
   const isDemo = report.mode === 'demo';
-  return section(isCreator(report) ? 'Creators Instagram links to you' : 'Accounts Instagram links to you', 'Instagram lists these as similar to this account. They are strong candidates to compare against next time.',
+  const fromPosts = report.accounts[0].profile.suggestionSource === 'connections';
+  const title = fromPosts ? 'Accounts you collaborate with' : isCreator(report) ? 'Creators Instagram links to you' : 'Accounts Instagram links to you';
+  const intro = fromPosts
+    ? 'Accounts this profile collaborates with, tags or mentions in recent posts. Useful to compare against or partner with next time.'
+    : 'Instagram lists these as similar to this account. They are strong candidates to compare against next time.';
+  return section(title, intro,
     h('div', { class: 'card' },
       h('div', { class: 'suggestion-chips' }, fresh.map((item) => (isDemo
         ? h('span', { class: 'chip' }, `@${item.handle}`)
@@ -1206,24 +1211,28 @@ function renderReport(report, tab = activeTab) {
 // The GitHub Pages showcase has no server, so it answers from the bundled sample report instead.
 const STATIC_SITE = Boolean(document.querySelector('meta[name="viralyst-static"]'));
 const CONTACT_EMAIL = 'connect.viralyst@gmail.com';
-let sampleReport = null;
+let sampleReports = null;
 
 async function staticApi(url, options = {}) {
-  sampleReport ??= await fetch('site/sample-report.json').then((response) => response.json());
-  const summary = {
-    id: sampleReport.id,
-    createdAt: sampleReport.createdAt,
-    mode: sampleReport.mode,
-    handles: sampleReport.accounts.map((account) => account.profile.handle),
-    overall: sampleReport.score.overall,
-    audienceType: sampleReport.audienceType,
-  };
+  sampleReports ??= await Promise.all(['site/sample-report.json', 'site/sample-report-creator.json']
+    .map((file) => fetch(file).then((response) => (response.ok ? response.json() : null)).catch(() => null)))
+    .then((list) => list.filter(Boolean));
+  const summary = (report) => ({
+    id: report.id,
+    createdAt: report.createdAt,
+    mode: report.mode,
+    handles: report.accounts.map((account) => account.profile.handle),
+    overall: report.score.overall,
+    audienceType: report.audienceType,
+  });
+  const forMode = sampleReports.find((report) => (report.audienceType ?? 'business') === audienceMode) ?? sampleReports[0];
+  const byId = sampleReports.find((report) => url === `/api/reports/${report.id}`);
   if (url === '/api/status') return { apify: false, anthropic: false, static: true };
-  if (url === '/api/reports') return [summary];
+  if (url === '/api/reports') return sampleReports.map(summary);
   if (url === '/api/reel-checks') return [];
   if (url === '/api/audit') return { jobId: 'sample' };
-  if (url === '/api/jobs/sample') return { state: 'done', reportId: sampleReport.id };
-  if (url === `/api/reports/${sampleReport.id}` && !options.method) return sampleReport;
+  if (url === '/api/jobs/sample') return { state: 'done', reportId: forMode.id };
+  if (byId && !options.method) return byId;
   if (url.endsWith('/inputs')) throw new Error('Entering private Insights works in the full Viralyst app.');
   throw new Error('This is available in the full Viralyst app.');
 }
@@ -1266,6 +1275,9 @@ async function loadStatus() {
     $('run').textContent = 'Request my audit';
     $('reel-forms').hidden = true;
     $('reels-static-note').hidden = false;
+    $('reel-history').closest('section').hidden = true;
+    $('input-skip-ai').closest('label').hidden = true;
+    if (window.location.hash === '#/settings') window.location.hash = '#/';
     return;
   }
   $('settings-dot').hidden = status.apify && status.anthropic;
@@ -1442,14 +1454,14 @@ $('suggest-accounts').addEventListener('click', async () => {
   button.disabled = true;
   button.textContent = 'Looking…';
   try {
-    const { suggestions } = await api(`/api/suggest?handle=${encodeURIComponent(handle)}`);
+    const { suggestions, source } = await api(`/api/suggest?handle=${encodeURIComponent(handle)}`);
     box.replaceChildren(suggestions.length
-      ? h('div', { class: 'suggestion-chips' }, h('span', { class: 'note' }, 'Tap to add:'), suggestions.map((item) => h('button', {
+      ? h('div', { class: 'suggestion-chips' }, h('span', { class: 'note' }, source === 'connections' ? 'Accounts it collaborates with or mentions. Tap to add:' : 'Tap to add:'), suggestions.map((item) => h('button', {
         class: 'chip-button',
         type: 'button',
         onclick: (event) => { addCompetitor(item.handle); event.currentTarget.disabled = true; },
       }, `@${item.handle}`)))
-      : h('p', { class: 'note' }, 'Instagram shows no similar accounts for this profile.'));
+      : h('p', { class: 'note' }, 'No similar, tagged or collaborating accounts found for this profile. Add accounts by hand.'));
   } catch (problem) {
     box.replaceChildren(h('p', { class: 'error' }, problem.message));
   } finally {
@@ -1775,7 +1787,7 @@ async function route() {
     window.scrollTo(0, 0);
     return;
   }
-  const page = { '#/new': 'new', '#/audits': 'audits', '#/reels': 'reels', '#/settings': 'settings' }[hash] ?? 'home';
+  const page = { '#/new': 'new', '#/audits': 'audits', '#/reels': 'reels', '#/settings': STATIC_SITE ? 'home' : 'settings' }[hash] ?? 'home';
   showPage(page);
   window.scrollTo(0, 0);
   if (page === 'home') {
