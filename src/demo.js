@@ -1,5 +1,33 @@
 // Invented sample data, so the report can be seen without any keys. These are not real companies.
 import { AI_CHECK_IDS } from './framework.js';
+import { buildTimeline } from './frames.js';
+import { reelFeedback } from './reelcheck.js';
+
+/** A plausible measured Reel: quick hooks start sound and movement at once; slow ones open quietly and sag mid-way. */
+function demoVideo(duration, quick) {
+  const seconds = Math.round(duration);
+  const gap = quick ? 2.5 : 8;
+  const cuts = [];
+  for (let t = gap; t < seconds; t += gap) cuts.push(Number(t.toFixed(1)));
+  const motion = [];
+  const loudness = [];
+  const sagFrom = seconds * 0.45;
+  const sagTo = sagFrom + 4;
+  for (let t = 0; t < seconds; t += 0.2) {
+    const nearCut = cuts.some((c) => Math.abs(c - t) < 0.4);
+    const sag = !quick && t >= sagFrom && t < sagTo;
+    motion.push({ t, v: nearCut ? 0.28 : sag ? 0.004 : quick ? 0.05 : 0.015 });
+  }
+  for (let t = 0; t < seconds; t += 0.5) {
+    const silentStart = !quick && t < 1.8;
+    const sag = !quick && t >= sagFrom && t < sagTo;
+    loudness.push({ t, v: silentStart ? -60 : sag ? -42 : quick ? -18 : -24 });
+  }
+  const silences = quick ? [] : [{ from: 0, to: 1.8 }];
+  const timeline = buildTimeline({ seconds, cuts, motion, loudness, silences, hasAudio: true });
+  const stats = { width: 1080, height: 1920, isVertical: true, hasAudio: true, seconds, cuts: cuts.length, cutsPer10Seconds: Number(((cuts.length / seconds) * 10).toFixed(1)), ...timeline };
+  return { ...stats, feedback: reelFeedback(stats) };
+}
 
 const DAY_MS = 86_400_000;
 
@@ -78,7 +106,7 @@ function buildPosts(prefix, concepts, base, spread, rand, now, { likeRate, comme
       coauthors: [],
       music: i % 9 === 8 ? null : { artist: null, song: null, isOriginal: i % 2 === 0, muted: false },
       shares: null,
-      video: i % 9 === 8 ? null : { width: 1080, height: 1920, isVertical: true, hasAudio: true, seconds: duration, cuts: Math.round(duration / (duration < 30 ? 2.5 : 8)), cutsPer10Seconds: duration < 30 ? 4 : 1.2 },
+      video: i % 9 === 8 ? null : demoVideo(duration, duration < 30),
       transcript: null,
       commentSample: comments,
       inLatest: i < 12,

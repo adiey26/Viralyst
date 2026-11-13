@@ -18,9 +18,14 @@
         <svg class="logo-svg" viewBox="463 186 1077 322" role="img" aria-label="Viralyst"><path d="M554.7 427.7 473.1 215.9H523.5L575.4 359L627.9 215.9H677.7L595.2 427.7Z M704.1 427.7V281.9H750V427.7Z M777.9 427.7V281.9H823.8V293Q837.3 278.9 861.3 278.9Q871.8 278.9 879.7 282.1Q887.7 285.2 893.7 291.8L866.4 326.3Q863.4 323 858.9 321.2Q854.4 319.4 848.7 319.4Q837.3 319.4 830.5 326.5Q823.8 333.5 823.8 347.6V427.7Z M958.2 430.7Q938.1 430.7 922.3 420.8Q906.6 410.9 897.4 393.8Q888.3 376.7 888.3 354.8Q888.3 332.9 897.4 315.8Q906.6 298.7 922.3 288.8Q938.1 278.9 958.2 278.9Q972.9 278.9 984.9 284.6Q992.4 288.2 998.4 293.9V281.9H1043.4V427.7H998.4V416Q992.7 421.4 984.9 425Q972.9 430.7 958.2 430.7ZM967.5 389.3Q982.2 389.3 991.2 379.6Q1000.2 369.8 1000.2 354.8Q1000.2 344.6 996.1 336.8Q992.1 329 984.7 324.7Q977.4 320.3 967.8 320.3Q958.2 320.3 950.8 324.7Q943.5 329 939.1 336.8Q934.8 344.6 934.8 354.8Q934.8 364.7 939 372.5Q943.2 380.3 950.7 384.8Q958.2 389.3 967.5 389.3Z M1071.3 427.7V220.7L1117.1 195.5V427.7Z M1149.8 495.2 1185.6 417.8 1130.1 281.9H1179.6L1208.6 370.4L1238.4 281.9H1287.9L1225.4 428.3L1209.7 465.5Z M1348.5 431.3Q1335.6 431.3 1323.1 428Q1310.7 424.7 1300 418.6Q1289.4 412.4 1281.9 404.3L1308 377.9Q1315.2 385.7 1325.1 390.1Q1335 394.4 1346.7 394.4Q1354.8 394.4 1359.1 392Q1363.5 389.6 1363.5 385.4Q1363.5 380 1358.2 377.2Q1353 374.3 1344.9 372.1Q1336.8 369.8 1327.8 367.1Q1318.8 364.4 1310.7 359.6Q1302.6 354.8 1297.5 346.3Q1292.4 337.7 1292.4 324.5Q1292.4 310.4 1299.6 300.1Q1306.8 289.7 1320 283.7Q1333.2 277.7 1350.9 277.7Q1369.5 277.7 1385.2 284.2Q1401 290.6 1410.9 303.2L1384.8 329.6Q1377.9 321.5 1369.3 318.2Q1360.8 314.9 1352.7 314.9Q1344.9 314.9 1341 317.2Q1337.1 319.4 1337.1 323.6Q1337.1 328.1 1342.2 330.8Q1347.3 333.5 1355.4 335.6Q1363.5 337.7 1372.5 340.7Q1381.5 343.7 1389.6 348.8Q1397.7 353.9 1402.8 362.5Q1407.9 371 1407.9 384.8Q1407.9 406.1 1391.8 418.7Q1375.8 431.3 1348.5 431.3Z M1449 427.7V320.9H1416V281.9H1449V233.9L1494.9 208.7V281.9H1527.9V320.9H1494.9V427.7Z" fill="currentColor"/><path d="M700.3 260.9 L753.7 260.9 L727 214.1 Z" fill="#D9482A"/></svg>
         <span class="logo-tag">Instagram<br>Audit</span>
       </a>
+      <div class="mode-switch" role="group" aria-label="Who is this for">
+        <button type="button" data-set-mode="business" aria-pressed="true">Business</button>
+        <button type="button" data-set-mode="creator" aria-pressed="false">Creators</button>
+      </div>
       <nav class="main-nav" aria-label="Main">
         <a href="#/" data-nav="home">Home</a>
         <a href="#/audits" data-nav="audits">My audits</a>
+        <a href="#/reels" data-nav="reels">Reel checker</a>
         <a href="#/settings" data-nav="settings">Settings <span id="settings-dot" class="dot" hidden></span></a>
         <button id="logout" class="nav-link" type="button" hidden>Sign out</button>
         <a href="#/new" class="button primary small" data-nav="new">New audit</a>
@@ -35,8 +40,8 @@
         <div class="wrap hero-grid">
           <div class="hero-copy">
             <p class="eyebrow rise"><span class="live-dot" aria-hidden="true"></span>Instagram audit by Viralyst</p>
-            <h1 class="rise">Find out what's <span class="hl">stopping</span> your Instagram from growing.</h1>
-            <p class="hero-lede rise">Paste any profile. Get a score out of 100, the exact fixes ranked by impact, and how you stack up against your competitors.</p>
+            <h1 class="rise"><span data-mode="business">Find out what's <span class="hl">stopping</span> your Instagram from growing.</span><span data-mode="creator" hidden>Find out why your <span class="hl">Reels</span> aren't taking off.</span></h1>
+            <p class="hero-lede rise"><span data-mode="business">Paste any profile. Get a score out of 100, the exact fixes ranked by impact, and how you stack up against your competitors.</span><span data-mode="creator" hidden>Paste your handle. Get a score out of 100, a second-by-second breakdown of your Reels, what to post next, and a media kit for brand deals.</span></p>
             <form id="hero-form" class="hero-form rise" novalidate>
               <label class="visually-hidden" for="hero-handle">Instagram profile to audit</label>
               <div class="input-wrap">
@@ -178,11 +183,52 @@
           </div>
         </section>
 
+        <section class="home-section audience-section">
+          <p class="kicker reveal">Built for how you use Instagram</p>
+          <h2 class="display reveal">One audit, tuned for you</h2>
+          <p class="section-sub reveal">Switch between Business and Creators at the top. The score, the checks and the advice change to match.</p>
+          <div class="audience-grid">
+            <article class="audience-card reveal" data-audience-card="business">
+              <h3>For businesses</h3>
+              <ul>
+                <li>Competitor benchmark and head-to-head</li>
+                <li>Buying-intent comments and bio-link funnel</li>
+                <li>Festival and offer performance</li>
+                <li>Caption language that sells best</li>
+                <li>Local competitor suggestions</li>
+              </ul>
+              <button class="pill" type="button" data-set-mode="business">Use Business</button>
+            </article>
+            <article class="audience-card shared reveal">
+              <h3>For everyone</h3>
+              <ul>
+                <li>Viralyst Score across 95 checks</li>
+                <li>Second-by-second Reel breakdown</li>
+                <li>Reel checker before you post</li>
+                <li>Best time to post</li>
+                <li>Before-and-after tracking</li>
+                <li>Ask Viralyst, ideas and scripts</li>
+              </ul>
+            </article>
+            <article class="audience-card reveal" data-audience-card="creator">
+              <h3>For creators</h3>
+              <ul>
+                <li>Hooks, retention and Reel pacing weighted highest</li>
+                <li>Compare with similar creators, or go solo</li>
+                <li>Brand-deal readiness score</li>
+                <li>Media kit from your real numbers</li>
+                <li>Brand pitch writer</li>
+              </ul>
+              <button class="pill" type="button" data-set-mode="creator">Use Creators</button>
+            </article>
+          </div>
+        </section>
+
         <section class="home-section">
           <h2 class="display reveal">Three steps. No login.</h2>
           <ol class="step-list">
             <li class="step-card reveal"><span class="step-tag">Step 1</span><h3>Add your account</h3><p>Paste the profile. We only read what's already public.</p></li>
-            <li class="step-card reveal"><span class="step-tag">Step 2</span><h3>Add competitors</h3><p>Up to five accounts you want to beat.</p></li>
+            <li class="step-card reveal"><span class="step-tag">Step 2</span><h3><span data-mode="business">Add competitors</span><span data-mode="creator" hidden>Add similar creators</span></h3><p><span data-mode="business">Up to five accounts you want to beat.</span><span data-mode="creator" hidden>Optional. Up to five creators in your niche, or skip it for a solo audit.</span></p></li>
             <li class="step-card reveal"><span class="step-tag">Step 3</span><h3>Get your score and plan</h3><p>Read it online or save it as a PDF to share with your team.</p></li>
           </ol>
         </section>
@@ -241,6 +287,14 @@
           <p>Three quick steps. You can save the report as a PDF when it's ready.</p>
         </div>
 
+        <div class="wizard-mode">
+          <span>Auditing a</span>
+          <div class="mode-switch" role="group" aria-label="Audit type">
+            <button type="button" data-set-mode="business" aria-pressed="true">Business</button>
+            <button type="button" data-set-mode="creator" aria-pressed="false">Creator</button>
+          </div>
+        </div>
+
         <div id="setup-warning" class="notice" hidden>
           <strong>Connect your accounts first.</strong>
           <span id="setup-warning-text"></span>
@@ -248,14 +302,14 @@
         </div>
 
         <ol class="stepper" aria-label="Audit steps">
-          <li data-step-label="1" class="active"><span>1</span>Company</li>
-          <li data-step-label="2"><span>2</span>Competitors</li>
+          <li data-step-label="1" class="active"><span>1</span><b data-mode="business">Company</b><b data-mode="creator" hidden>Creator</b></li>
+          <li data-step-label="2"><span>2</span><b data-mode="business">Competitors</b><b data-mode="creator" hidden>Similar creators</b></li>
           <li data-step-label="3"><span>3</span>Goals</li>
         </ol>
 
         <form id="audit-form" class="card wizard" novalidate>
           <fieldset class="wizard-step" data-step="1">
-            <legend>Which company are you auditing?</legend>
+            <legend><span data-mode="business">Which company are you auditing?</span><span data-mode="creator" hidden>Which creator account are you auditing?</span></legend>
             <label class="field">
               <span>Instagram profile link or username</span>
               <input id="input-a" autocomplete="off" spellcheck="false" placeholder="instagram.com/yourcompany or @yourcompany">
@@ -264,10 +318,15 @@
           </fieldset>
 
           <fieldset class="wizard-step" data-step="2" hidden>
-            <legend>Who are its competitors?</legend>
-            <p class="field-help">Add up to 5. We recommend 3 or more. The first one gets the side-by-side comparison.</p>
+            <legend><span data-mode="business">Who are its competitors?</span><span data-mode="creator" hidden>Who are similar creators? <em>(optional)</em></span></legend>
+            <p class="field-help"><span data-mode="business">Add up to 5. We recommend 3 or more. The first one gets the side-by-side comparison.</span><span data-mode="creator" hidden>Add up to 5 creators in your niche to compare with, or leave this empty for a solo audit.</span></p>
+            <div class="suggest-row">
+              <button id="suggest-accounts" class="button ghost small" type="button">Suggest accounts</button>
+              <span class="note">Uses Instagram's own "similar accounts" for the profile in step 1.</span>
+            </div>
+            <div id="suggestions" class="suggestions" aria-live="polite"></div>
             <div id="competitor-list" class="competitor-list">
-              <label class="field"><span>Main competitor</span><input class="competitor" autocomplete="off" spellcheck="false" placeholder="instagram.com/competitor"></label>
+              <label class="field"><span><b data-mode="business">Main competitor</b><b data-mode="creator" hidden>Similar creator 1</b></span><input class="competitor" autocomplete="off" spellcheck="false" placeholder="instagram.com/account"></label>
               <label class="field"><span>Competitor 2</span><input class="competitor" autocomplete="off" spellcheck="false" placeholder="Optional"></label>
               <label class="field"><span>Competitor 3</span><input class="competitor" autocomplete="off" spellcheck="false" placeholder="Optional"></label>
             </div>
@@ -275,15 +334,21 @@
           </fieldset>
 
           <fieldset class="wizard-step" data-step="3" hidden>
-            <legend>What should Instagram do for this business?</legend>
-            <div class="goal-grid" role="radiogroup" aria-label="Main goal">
+            <legend><span data-mode="business">What should Instagram do for this business?</span><span data-mode="creator" hidden>What do you want from Instagram?</span></legend>
+            <div class="goal-grid" role="radiogroup" aria-label="Main goal" data-mode="creator" hidden>
+              <label class="goal"><input type="radio" name="goal" value="Grow followers"><span><strong>Followers</strong>Grow my audience</span></label>
+              <label class="goal"><input type="radio" name="goal" value="Views and reach"><span><strong>Views</strong>Get more Reels seen</span></label>
+              <label class="goal"><input type="radio" name="goal" value="Brand deals"><span><strong>Brand deals</strong>Earn from sponsorships</span></label>
+              <label class="goal"><input type="radio" name="goal" value="Community"><span><strong>Community</strong>Build loyal fans</span></label>
+            </div>
+            <div class="goal-grid" role="radiogroup" aria-label="Main goal" data-mode="business">
               <label class="goal"><input type="radio" name="goal" value="Awareness"><span><strong>Awareness</strong>Reach new people</span></label>
               <label class="goal"><input type="radio" name="goal" value="Leads"><span><strong>Leads</strong>Get enquiries and sign-ups</span></label>
               <label class="goal"><input type="radio" name="goal" value="Sales"><span><strong>Sales</strong>Sell products or services</span></label>
               <label class="goal"><input type="radio" name="goal" value="Community"><span><strong>Community</strong>Build loyal fans</span></label>
             </div>
             <div class="field-row">
-              <label class="field"><span>Ideal customer <em>(optional)</em></span><input id="input-customer" maxlength="500" placeholder="Women aged 25 to 40 starting yoga"></label>
+              <label class="field"><span><b data-mode="business">Ideal customer</b><b data-mode="creator" hidden>Ideal audience</b> <em>(optional)</em></span><input id="input-customer" maxlength="500" placeholder="Women aged 25 to 40 starting yoga"></label>
               <label class="field"><span>Markets <em>(optional)</em></span><input id="input-markets" maxlength="500" placeholder="India, mainly Mumbai and Delhi"></label>
             </div>
             <label class="field"><span>Anything else we should know? <em>(optional)</em></span>
@@ -325,6 +390,46 @@
           <a class="button primary" href="#/new">New audit</a>
         </div>
         <div id="audit-list" class="audit-grid"></div>
+      </div>
+    </section>
+
+    <!-- Reel checker -->
+    <section id="page-reels" class="page" hidden>
+      <div class="wrap">
+        <div class="page-head">
+          <h1>Reel checker</h1>
+          <p>Check a Reel before you post it. We measure it second by second, score the hook, pacing, sound and ending, and tell you exactly what to fix.</p>
+        </div>
+        <p id="reels-static-note" class="card note" hidden>The Reel checker runs in the full Viralyst app. Email connect.viralyst@gmail.com and we'll check your Reel for you.</p>
+        <div id="reel-forms" class="grid-2 reel-forms">
+          <form id="reel-upload-form" class="card form-card" novalidate>
+            <h2>Upload a draft</h2>
+            <label class="field"><span>Video file (MP4 or MOV, up to 300 MB)</span><input id="reel-file" type="file" accept="video/mp4,video/quicktime,video/*"></label>
+            <label class="field"><span>Name <em>(optional)</em></span><input id="reel-name" maxlength="80" placeholder="Recipe Reel, version 2"></label>
+            <label class="field"><span>What should it do? <em>(optional)</em></span><input id="reel-goal" maxlength="300" placeholder="Get saves and comments asking for the recipe"></label>
+            <label class="toggle"><input id="reel-skip-ai" type="checkbox"><span><strong>Numbers only</strong>Skips the AI review of the frames.</span></label>
+            <button class="button primary" type="submit">Check this draft</button>
+          </form>
+          <form id="reel-link-form" class="card form-card" novalidate>
+            <h2>Check a posted Reel</h2>
+            <label class="field"><span>Reel link</span><input id="reel-link" autocomplete="off" spellcheck="false" placeholder="https://www.instagram.com/reel/…"></label>
+            <label class="field"><span>Name <em>(optional)</em></span><input id="reel-link-name" maxlength="80" placeholder="Last week's Reel"></label>
+            <p class="field-help">Works for any public Reel, including a competitor's. Uses a little Apify credit.</p>
+            <button class="button primary" type="submit">Check this Reel</button>
+          </form>
+        </div>
+        <p id="reel-error" class="error" role="alert" hidden></p>
+        <div id="reel-progress" class="card progress-card" hidden aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <h2>Checking your Reel</h2>
+          <p id="reel-progress-text" class="note">Uploading…</p>
+        </div>
+        <div id="reel-result"></div>
+        <section class="section">
+          <h2>Your checks</h2>
+          <p class="section-intro">Upload each new version to see whether the score goes up.</p>
+          <div id="reel-history"></div>
+        </section>
       </div>
     </section>
 

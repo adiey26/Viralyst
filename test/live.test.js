@@ -249,3 +249,37 @@ test('hitting the post limit is reported with the period actually covered', asyn
   const report = await runLiveAudit({ a: 'alpha', competitors: ['beta'] }, () => {}, { hasAnthropicKey: false, inspectLink: async () => ({ present: false }), reviewVideo: fakeVideoReview });
   assert.ok(report.warnings.some((warning) => /limit of 60 posts.*last 33 days/.test(warning)), JSON.stringify(report.warnings));
 });
+
+test('a second audit of the same account is compared with the first, including whether fixes worked', async () => {
+  const deps = { hasAnthropicKey: false, inspectLink: async () => ({ present: false }), reviewVideo: fakeVideoReview };
+  const first = await runLiveAudit({ a: 'progress_co', competitors: ['beta'] }, () => {}, deps);
+  await new Promise((resolve) => { setTimeout(resolve, 20); });
+  scenario.profile = (input) => json(input.usernames.map((handle) => profile(handle, { followersCount: handle === 'progress_co' ? 6000 : 5000 })));
+  const second = await runLiveAudit({ a: 'progress_co', competitors: ['beta'] }, () => {}, deps);
+
+  assert.equal(loadReport(first.id).progress, null, 'the first audit has nothing to compare with');
+  const progress = loadReport(second.id).progress;
+  assert.equal(progress.previousId, first.id);
+  const followers = progress.metrics.find((m) => m.key === 'followers');
+  assert.equal(followers.before, 5000);
+  assert.equal(followers.after, 6000);
+  assert.ok(progress.fixes.length > 0);
+  assert.ok(progress.fixes.every((fix) => ['improved', 'worse', 'unchanged', 'unknown'].includes(fix.status)));
+});
+
+test('creator audits can run without similar creators, and are scored with creator weights', async () => {
+  const report = await runLiveAudit({ a: 'solo_creator', competitors: [], audienceType: 'creator' }, () => {}, { hasAnthropicKey: false, inspectLink: async () => ({ present: false }), reviewVideo: fakeVideoReview });
+  assert.equal(report.audienceType, 'creator');
+  assert.equal(report.accounts.length, 1);
+  assert.deepEqual(report.scoreboard, []);
+  assert.equal(report.score.mode, 'creator');
+  assert.ok(!report.score.pillars.some((p) => p.id === 12 || p.id === 13), 'brand-safety and tracking pillars are left out for creators');
+  assert.equal(report.score.pillars.find((p) => p.id === 10).title, 'Similar creators');
+  assert.equal(report.score.coverage.total, report.score.pillars.reduce((sum, p) => sum + p.totalCount, 0));
+});
+
+test('related accounts Instagram suggests are kept for competitor suggestions', async () => {
+  scenario.profile = (input) => json(input.usernames.map((handle) => profile(handle, { relatedProfiles: [{ username: 'Local_Rival', full_name: 'Local Rival', is_private: false }, { username: 'hidden', is_private: true }] })));
+  const report = await runLiveAudit({ a: 'alpha', competitors: ['beta'] }, () => {}, { hasAnthropicKey: false, inspectLink: async () => ({ present: false }), reviewVideo: fakeVideoReview });
+  assert.deepEqual(report.accounts[0].profile.relatedProfiles.map((p) => p.handle), ['local_rival']);
+});

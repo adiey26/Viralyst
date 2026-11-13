@@ -275,3 +275,46 @@ test('a real video is measured: one cut, vertical format, no audio, frames extra
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('reel feedback scores hooks, pacing, audio, ending, format and length from measurements', async () => {
+  const { reelFeedback } = await import('../src/reelcheck.js');
+  const strong = reelFeedback({ seconds: 22, width: 1080, height: 1920, isVertical: true, hasAudio: true, cutsPer10Seconds: 3, hook: { soundStart: 0, firstMovement: 0.2, openingEnergy: 0.6 }, averageEnergy: 0.5, endingEnergy: 0.5, silentShare: 0.05, longestSilence: 0.4, weakestStretch: null });
+  const weak = reelFeedback({ seconds: 5, width: 640, height: 360, isVertical: false, hasAudio: true, cutsPer10Seconds: 0, hook: { soundStart: 2.4, firstMovement: null, openingEnergy: 0.1 }, averageEnergy: 0.4, endingEnergy: 0.1, silentShare: 0.7, longestSilence: 3, weakestStretch: { from: 3, to: 6 } });
+  assert.ok(strong.overall >= 80, `strong was ${strong.overall}`);
+  assert.ok(weak.overall < 50, `weak was ${weak.overall}`);
+  assert.match(weak.parts.find((p) => p.key === 'hook').notes.join(' '), /2\.4s/);
+  assert.ok(weak.fixes.length > 0 && weak.fixes.length <= 5);
+  assert.equal(strong.parts.length, 6);
+});
+
+test('best posting times, festival posts and caption languages are measured', async () => {
+  const { bestPostingTimes, festivalInsights } = await import('../src/metrics.js');
+  const at = (iso, perf, caption = 'Hello') => ({ timestamp: iso, perf, caption });
+  const posts = [
+    at('2026-11-02T03:00:00Z', 3, 'Diwali offer 20% off'), at('2026-11-09T03:30:00Z', 2.5, 'Diwali hamper order now'),
+    at('2026-11-03T10:00:00Z', 0.5, 'Happy Diwali to all'), at('2026-11-04T10:00:00Z', 0.4, 'Happy Holi'),
+    at('2026-11-05T10:00:00Z', 1),
+  ];
+  const times = bestPostingTimes(posts, 'Asia/Kolkata');
+  assert.equal(times.best[0].day, 'Mon');
+  assert.equal(times.best[0].slot, 'Morning (6–12)');
+  assert.equal(times.best[0].n, 2);
+  const fest = festivalInsights(posts);
+  assert.equal(fest.festivalPosts, 4);
+  assert.equal(fest.offer.n, 2);
+  assert.equal(fest.greeting.n, 2);
+  assert.ok(fest.offer.value > fest.greeting.value);
+  assert.equal(fest.byFestival[0].festival, 'Diwali');
+});
+
+test('creator mode reweights pillars to 100 and leaves out business-only pillars', async () => {
+  const { MODES, pillarsFor } = await import('../src/framework.js');
+  for (const mode of Object.keys(MODES)) {
+    assert.equal(pillarsFor(mode).reduce((sum, p) => sum + p.weight, 0), 100, mode);
+  }
+  assert.equal(pillarsFor('business').length, 13);
+  assert.equal(pillarsFor('creator').length, 11);
+  const creatorScore = computeScore({ audienceType: 'creator', checks: { '13.1': { score: 0 }, '4.1': { score: 80 } } });
+  assert.equal(creatorScore.overall, 80, 'a tracking check does not count against a creator');
+  assert.equal(computeScore({ checks: { '13.1': { score: 0 }, '4.1': { score: 80 } } }).overall, Math.round((80 * 14) / 16));
+});

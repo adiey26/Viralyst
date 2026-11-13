@@ -64,6 +64,7 @@ const bar = (value, max, cls = '') => `<span class="bar ${cls}"><span style="wid
 // ---------- data ----------
 const [client, ...rivals] = report.accounts;
 const main = rivals[0];
+const creator = report.audienceType === 'creator';
 const score = report.score;
 const handles = report.accounts.map((a) => `@${a.profile.handle}`);
 const byCode = (account) => new Map(account.posts.map((p) => [p.shortCode, p]));
@@ -93,7 +94,7 @@ pages.push(`<section class="page cover">
   <div class="cover-top">${wordmark}</div>
   <div class="cover-main">
     ${vMark}
-    <p class="cover-kicker">Instagram Audit</p>
+    <p class="cover-kicker">${creator ? 'Creator Instagram Audit' : 'Instagram Audit'}</p>
     <h1>@${esc(client.profile.handle)}</h1>
     <p class="cover-sub">${esc(client.profile.fullName || '')}${rivals.length ? ` · benchmarked against ${rivals.map((a) => `@${esc(a.profile.handle)}`).join(', ')}` : ''}</p>
   </div>
@@ -126,7 +127,7 @@ page('Executive summary', `
 
 // Score by area
 page('Score by area', `
-  <p class="lead">Each of the 13 areas is weighted by how strongly it affects growth and revenue.</p>
+  <p class="lead">Each of the ${score.pillars.length} areas is weighted by how strongly it affects ${creator ? 'reach and brand deals' : 'growth and revenue'}.</p>
   <table class="areas">${score.pillars.map((p) => `<tr>
     <td class="a-name">${p.id}. ${esc(p.title)}<small>${p.weight}% of score</small></td>
     <td class="a-bar">${p.score == null ? '<span class="bar empty"><span></span></span>' : bar(p.score, 100, ratingClass(p.score))}</td>
@@ -154,7 +155,7 @@ if (main) {
     <tbody>${rows.map(([label, fn]) => `<tr><td>${label}</td>${report.accounts.map((a, i) => `<td class="${i === 0 ? 'you' : ''}">${esc(fn(a))}</td>`).join('')}</tr>`).join('')}</tbody></table>
     ${notes?.comparison?.length ? `<div class="callouts">${notes.comparison.map((c) => `<div class="callout"><strong>${esc(c.title)}</strong><p>${esc(c.detail)}</p></div>`).join('')}</div>` : ''}
     <p class="tiny">Public data. Engagement rate is median likes plus comments divided by followers. ${report.warnings?.filter((w) => /limit of|older posts/.test(w)).map(esc).join(' ') ?? ''}</p>
-  `, { kicker: 'Competitor benchmark' });
+  `, { kicker: creator ? 'Similar creators' : 'Competitor benchmark' });
 }
 
 // Best and worst posts

@@ -1,3 +1,5 @@
+import { dominantScript } from './audience.js';
+
 const DAY_MS = 86_400_000;
 const NEW_POST_MS = 2 * DAY_MS; // Posts younger than this are still gathering views.
 export const MIN_SAMPLE = 3;
@@ -121,6 +123,71 @@ function windowCadence(feed, reviewDays, now) {
   };
 }
 
+const SLOTS = ['Morning (6–12)', 'Afternoon (12–17)', 'Evening (17–21)', 'Late (21–24)', 'Night (0–6)'];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/**
+ * When posts did best, by day and time of day. This uses public post results, so it shows when the
+ * account's posts have worked, not when followers are online (that needs Instagram's own data).
+ */
+export function bestPostingTimes(scored, timezone) {
+  const cells = new Map();
+  for (const post of scored) {
+    const { weekday, hour } = localParts(post, timezone);
+    const key = `${weekday}|${timeBucket(hour)}`;
+    cells.set(key, [...(cells.get(key) ?? []), post.perf]);
+  }
+  const grid = DAYS.map((day) => SLOTS.map((slot) => {
+    const values = cells.get(`${day}|${slot}`) ?? [];
+    return { day, slot, n: values.length, value: median(values) };
+  }));
+  const ranked = grid.flat().filter((cell) => cell.n >= 2).sort((x, y) => y.value - x.value);
+  const busiest = grid.flat().filter((cell) => cell.n).sort((x, y) => y.n - x.n)[0] ?? null;
+  return { grid, slots: SLOTS, days: DAYS, best: ranked.slice(0, 3), busiest, sample: scored.length };
+}
+
+const FESTIVALS = [
+  ['Diwali', /\b(diwali|deepawali|deepavali)\b|दिवाली|दीपावली/i],
+  ['Dashain', /\bdashain\b|दशैं|दसैं/i],
+  ['Tihar', /\btihar\b|तिहार/i],
+  ['Holi', /\bholi\b|होली/i],
+  ['Eid', /\b(eid|ramadan|ramzan)\b/i],
+  ['Christmas', /\b(christmas|xmas)\b/i],
+  ['New Year', /\bnew year\b|नयाँ वर्ष/i],
+  ['Navratri and Dussehra', /\b(navratri|navaratri|dussehra|dasara|durga puja)\b|नवरात्रि/i],
+  ['Ganesh Chaturthi', /\b(ganesh|ganpati|ganapati) ?chaturthi\b|गणेश/i],
+  ['Janmashtami', /\bjanmashtami\b|जन्माष्टमी/i],
+  ['Raksha Bandhan', /\b(raksha ?bandhan|rakhi)\b|रक्षा ?बन्धन|रक्षाबंधन/i],
+  ['Chhath', /\bchhath\b|छठ/i],
+  ['Bhai Dooj and Bhai Tika', /\b(bhai ?dooj|bhai ?tika|bhaitika)\b/i],
+  ['Teej', /\bteej\b|तीज/i],
+  ['Onam and Pongal', /\b(onam|pongal|sankranti|lohri)\b/i],
+  ["Valentine's Day", /\bvalentine/i],
+];
+const OFFER = /\b(offer|sale|discount|\d+ ?% ?off|deal|combo|hamper|gift ?box|order|booking|book now|price|rs\.?|npr|inr)\b|₹|रु/i;
+
+/** How festival posts perform, and whether festival posts with an offer beat plain greetings. */
+export function festivalInsights(scored) {
+  const tagged = scored.map((post) => ({ post, festival: FESTIVALS.find(([, pattern]) => pattern.test(post.caption))?.[0] ?? null }))
+    .filter((entry) => entry.festival);
+  const withOffer = tagged.filter((entry) => OFFER.test(entry.post.caption));
+  const greetings = tagged.filter((entry) => !OFFER.test(entry.post.caption));
+  const byFestival = [...new Set(tagged.map((entry) => entry.festival))].map((festival) => {
+    const posts = tagged.filter((entry) => entry.festival === festival).map((entry) => entry.post);
+    return { festival, n: posts.length, value: median(posts.map((p) => p.perf)) };
+  }).sort((x, y) => y.value - x.value);
+  return {
+    festivalPosts: tagged.length,
+    festivalValue: median(tagged.map((entry) => entry.post.perf)),
+    otherValue: median(scored.filter((post) => !tagged.some((entry) => entry.post === post)).map((p) => p.perf)),
+    offer: { n: withOffer.length, value: median(withOffer.map((entry) => entry.post.perf)) },
+    greeting: { n: greetings.length, value: median(greetings.map((entry) => entry.post.perf)) },
+    byFestival,
+  };
+}
+
+const languageOf = (post) => dominantScript(post.caption ?? '')?.label ?? null;
+
 /** Mix and cadence use only the feed sample, because the extra Reel fetch would overstate Reels. */
 export function computeMetrics(profile, scoredPosts, { timezone = 'UTC', reviewDays = 90, now = Date.now() } = {}) {
   const dated = scoredPosts.filter((p) => p.timestamp);
@@ -173,7 +240,10 @@ export function computeMetrics(profile, scoredPosts, { timezone = 'UTC', reviewD
       callToAction: bucketize(scored, (p) => (CTA.test(p.caption) ? 'Has a call to action' : 'No call to action'),
         ['Has a call to action', 'No call to action']),
       formatEngagement: bucketize(unpinned, (p) => FORMATS[p.type], Object.values(FORMATS), rate),
+      captionLanguage: bucketize(scored, languageOf, [...new Set(scored.map(languageOf).filter(Boolean))]),
     },
+    bestTimes: bestPostingTimes(scored, timezone),
+    festivals: festivalInsights(scored),
   };
 }
 

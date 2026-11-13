@@ -8,9 +8,11 @@ import { computeAutoChecks } from './checks.js';
 import { config } from './config.js';
 import { demoAccounts, demoAnalysis, demoInsightsNote } from './demo.js';
 import { analyzeVideo, isAllowedMediaUrl } from './frames.js';
+import { reelFeedback } from './reelcheck.js';
 import { checkLanding } from './landing.js';
 import { buildScoreboard, computeMetrics, scorePosts } from './metrics.js';
 import { computeScore, fallbackFixes, validateInput } from './score.js';
+import { compareAudits, findPrevious } from './progress.js';
 import { attributeGrowth, SnapshotStore } from './tracker.js';
 
 const REPORTS_DIR = path.join(config.dataDir, 'reports');
@@ -101,7 +103,7 @@ async function reviewVideos(account, isClient, budget, { warn }) {
     const post = byCode.get(code);
     try {
       const { frames, stats } = await analyzeVideo(post.videoUrl, { frameCount: isClient ? 5 : 3 });
-      post.video = stats;
+      post.video = { ...stats, feedback: reelFeedback(stats) };
       for (const frame of frames) {
         budget.add(`Frame at ${frame.atSeconds}s of post ${code} from @${account.profile.handle}`, frame.mediaType, frame.data);
       }
@@ -176,7 +178,8 @@ export function loadReport(id) {
     // Reports saved before the framework was added get their measured checks calculated here.
     if (!report.checks && report.accounts?.[0]?.metrics) report.checks = computeAutoChecks(report.accounts);
     const score = computeScore(report);
-    return { ...report, score, fallbackFixes: fallbackFixes(score) };
+    const previous = findPrevious(report, readAllReports());
+    return { ...report, score, fallbackFixes: fallbackFixes(score), progress: previous ? compareAudits(report, previous) : null };
   } catch {
     return null;
   }
@@ -192,10 +195,39 @@ export function saveInputs(id, inputs) {
     if (value === null) delete clean[checkId];
     else clean[checkId] = value;
   }
-  const { score, fallbackFixes: unusedFixes, ...stored } = report;
+  const { score, fallbackFixes: unusedFixes, progress: unusedProgress, ...stored } = report;
   stored.inputs = clean;
   saveReport(stored);
   return loadReport(id);
+}
+
+/** Every saved report, read raw. Older reports without measured checks get them here. */
+function readAllReports() {
+  let files = [];
+  try {
+    files = readdirSync(REPORTS_DIR).filter((file) => file.endsWith('.json'));
+  } catch {
+    return [];
+  }
+  return files.flatMap((file) => {
+    try {
+      const report = JSON.parse(readFileSync(path.join(REPORTS_DIR, file), 'utf8'));
+      if (!report.checks && report.accounts?.[0]?.metrics) report.checks = computeAutoChecks(report.accounts);
+      return [report];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** Saves extra results onto a report, such as ideas or scripts made from it. */
+export function appendToReport(id, key, entry) {
+  const report = loadReport(id);
+  if (!report) return null;
+  const { score, fallbackFixes: unusedFixes, progress: unusedProgress, ...stored } = report;
+  stored[key] = [...(stored[key] ?? []), entry].slice(-50);
+  saveReport(stored);
+  return entry;
 }
 
 export function listReports() {
@@ -213,6 +245,7 @@ export function listReports() {
         createdAt: report.createdAt,
         mode: report.mode,
         handles: report.accounts.map((account) => account.profile.handle),
+        audienceType: report.audienceType === 'creator' ? 'creator' : 'business',
         overall: computeScore({ ...report, checks: report.checks ?? computeAutoChecks(report.accounts) }).overall,
       }];
     } catch {
@@ -221,13 +254,13 @@ export function listReports() {
   }).sort((x, y) => y.createdAt.localeCompare(x.createdAt));
 }
 
-function baseReport({ mode, notes, brief, timezone, now, warnings }) {
+function baseReport({ mode, audienceType = 'business', notes, brief, timezone, now, warnings }) {
   return {
-    id: randomUUID(), createdAt: new Date(now).toISOString(), mode, notes: notes || '', brief: brief ?? null, timezone, warnings, reviewDays: REVIEW_DAYS, inputs: {},
+    id: randomUUID(), createdAt: new Date(now).toISOString(), mode, audienceType: audienceType === 'creator' ? 'creator' : 'business', notes: notes || '', brief: brief ?? null, timezone, warnings, reviewDays: REVIEW_DAYS, inputs: {},
   };
 }
 
-export async function runDemoAudit({ timezone = 'UTC', notes = '', brief = null }, onProgress = () => {}) {
+export async function runDemoAudit({ timezone = 'UTC', notes = '', brief = null, audienceType = 'business' }, onProgress = () => {}) {
   const now = Date.now();
   onProgress('Building the sample report');
   const accounts = demoAccounts(now).map((demo) => {
@@ -236,7 +269,7 @@ export async function runDemoAudit({ timezone = 'UTC', notes = '', brief = null 
     finishAccount(account, demo.history);
     return account;
   });
-  const report = { ...baseReport({ mode: 'demo', notes, brief, timezone, now, warnings: [demoInsightsNote] }), accounts };
+  const report = { ...baseReport({ mode: 'demo', audienceType, notes, brief, timezone, now, warnings: [demoInsightsNote] }), accounts };
   report.scoreboard = buildScoreboard(accounts[0], accounts[1]);
   report.checks = computeAutoChecks(accounts);
   report.analysisStatus = { state: 'sample' };
@@ -245,7 +278,7 @@ export async function runDemoAudit({ timezone = 'UTC', notes = '', brief = null 
   return { ...report, score: computeScore(report) };
 }
 
-export async function runLiveAudit({ a, competitors, notes = '', brief = null, timezone = 'UTC', skipAi = false }, onProgress = () => {}, deps = {}) {
+export async function runLiveAudit({ a, competitors = [], notes = '', brief = null, timezone = 'UTC', skipAi = false, audienceType = 'business' }, onProgress = () => {}, deps = {}) {
   const { analyse = runAnalysis, hasAnthropicKey = config.hasAnthropicKey, inspectLink = checkLanding, reviewVideo = reviewVideos, checkAi = checkAiAccess } = deps;
   const now = Date.now();
   const warnings = [];
@@ -286,8 +319,8 @@ export async function runLiveAudit({ a, competitors, notes = '', brief = null, t
       finishAccount(account, tracker.history(account.profile.handle));
     }
 
-    const report = { ...baseReport({ mode: 'live', notes, brief, timezone, now, warnings }), accounts };
-    report.scoreboard = buildScoreboard(accounts[0], accounts[1]);
+    const report = { ...baseReport({ mode: 'live', audienceType, notes, brief, timezone, now, warnings }), accounts };
+    report.scoreboard = accounts[1] ? buildScoreboard(accounts[0], accounts[1]) : [];
     report.checks = computeAutoChecks(accounts);
 
     const resultCount = handles.length + accounts.reduce((sum, account) => sum + account.posts.length, 0)

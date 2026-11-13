@@ -1,4 +1,4 @@
-import { ALL_CHECKS, CHECK_BY_ID, PILLARS, RATINGS, ratingFor, scoreFromNumber } from './framework.js';
+import { CHECK_BY_ID, modeOf, pillarsFor, RATINGS, ratingFor, scoreFromNumber } from './framework.js';
 
 const NOTE_LIMIT = 500;
 
@@ -62,7 +62,8 @@ function resolveCheck(item, report, aiById) {
  */
 export function computeScore(report) {
   const aiById = new Map((report.analysis?.checkpoints ?? []).map((item) => [item.id, item]));
-  const pillars = PILLARS.map((pillar) => {
+  const mode = modeOf(report);
+  const pillars = pillarsFor(mode).map((pillar) => {
     const checks = pillar.checks.map((item) => ({
       id: item.id,
       title: item.title,
@@ -95,12 +96,13 @@ export function computeScore(report) {
   const all = pillars.flatMap((pillar) => pillar.checks);
 
   return {
+    mode,
     overall,
     rating: overall == null ? null : ratingFor(overall),
     pillars,
     coverage: {
       scored: scoredChecks,
-      total: ALL_CHECKS.length,
+      total: all.length,
       weightShare: pillars.reduce((sum, pillar) => sum + (pillar.weight * pillar.scoredCount) / pillar.totalCount, 0) / 100,
       measured: all.filter((item) => item.score != null && item.provenance === 'measured').length,
       ai: all.filter((item) => item.score != null && item.provenance === 'ai').length,

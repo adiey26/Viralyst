@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import http from 'node:http';
 import path from 'node:path';
 import { fetchSnapshot } from './apify.js';
-import { listReports, loadReport, openTracker, runDemoAudit, runLiveAudit, saveInputs, THUMBS_DIR } from './audit.js';
+import { appendToReport, listReports, loadReport, openTracker, runDemoAudit, runLiveAudit, saveInputs, THUMBS_DIR } from './audit.js';
+import { chatAboutReport, generateIdeas, writeBrandPitch, writeScript } from './assistant.js';
+import { renderMediaKit } from './mediakit.js';
+import { checkLinkedReel, checkUploadedReel, listReelChecks, loadReelCheck } from './reelchecks.js';
 import { config } from './config.js';
 import { parseHandle } from './handles.js';
 import { saveKeys } from './keys.js';
@@ -21,6 +25,8 @@ const STATIC_FILES = {
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
   '/login': ['login.html', 'text/html; charset=utf-8'],
   '/login.js': ['login.js', 'text/javascript; charset=utf-8'],
+  '/mediakit.css': ['mediakit.css', 'text/css; charset=utf-8'],
+  '/mediakit.js': ['mediakit.js', 'text/javascript; charset=utf-8'],
 };
 // Pages a signed-out visitor may load: the sign-in page and what it needs to display.
 const PUBLIC_PATHS = new Set(['/login', '/login.js', '/style.css', '/favicon.svg', '/healthz', '/api/login']);
@@ -34,6 +40,7 @@ const HEADERS = {
 };
 
 const jobs = new Map();
+const MAX_UPLOAD_BYTES = 300 * 1024 * 1024;
 const sessions = createSessions(config.sessionSecret ? { secret: config.sessionSecret } : {});
 const loginLimiter = createLoginLimiter();
 const loginRequired = config.hosted || Boolean(config.appPassword);
@@ -80,9 +87,10 @@ function startJob(run) {
   const job = { id, state: 'running', step: 'Starting', reportId: null, error: null };
   jobs.set(id, job);
   run((step) => { job.step = step; })
-    .then((report) => {
+    .then((result) => {
       job.state = 'done';
-      job.reportId = report.id;
+      if (result?.accounts) job.reportId = result.id;
+      else job.checkId = result?.id ?? null;
     })
     .catch((error) => {
       console.error('Audit failed:', error);
@@ -103,9 +111,10 @@ async function createAudit(req, res) {
   const notes = String(input.notes ?? '').slice(0, 2000);
   const text = (value) => String(value ?? '').trim().slice(0, 500);
   const brief = { goal: text(input.goal), idealCustomer: text(input.idealCustomer), markets: text(input.markets) };
+  const audienceType = input.audienceType === 'creator' ? 'creator' : 'business';
 
   if (input.demo === true) {
-    return send(res, 202, { jobId: startJob((progress) => runDemoAudit({ timezone, notes, brief }, progress)).id });
+    return send(res, 202, { jobId: startJob((progress) => runDemoAudit({ timezone, notes, brief, audienceType }, progress)).id });
   }
 
   let a;
@@ -113,7 +122,7 @@ async function createAudit(req, res) {
   try {
     a = parseHandle(input.a);
     const entered = Array.isArray(input.competitors) ? input.competitors.filter((value) => String(value ?? '').trim()) : [];
-    if (!entered.length) return send(res, 400, { error: 'Please enter at least one competitor.' });
+    if (!entered.length && audienceType === 'business') return send(res, 400, { error: 'Please enter at least one competitor.' });
     if (entered.length > MAX_COMPETITORS) return send(res, 400, { error: `Please enter up to ${MAX_COMPETITORS} competitors.` });
     competitors = entered.map(parseHandle);
   } catch (error) {
@@ -123,7 +132,7 @@ async function createAudit(req, res) {
   if (!config.apifyToken) {
     return send(res, 400, { error: config.hosted ? 'No Apify token is set. Add APIFY_TOKEN in your hosting settings.' : 'No Apify token is set. Add it in Settings, or view the sample report.' });
   }
-  return send(res, 202, { jobId: startJob((progress) => runLiveAudit({ a, competitors, notes, brief, timezone, skipAi: input.skipAi === true }, progress)).id });
+  return send(res, 202, { jobId: startJob((progress) => runLiveAudit({ a, competitors, notes, brief, timezone, skipAi: input.skipAi === true, audienceType }, progress)).id });
 }
 
 async function updateKeys(req, res) {
@@ -205,6 +214,125 @@ async function updateInputs(req, res, id) {
   }
 }
 
+async function readJson(req, res) {
+  try {
+    return JSON.parse(await readBody(req));
+  } catch {
+    send(res, 400, { error: 'Could not read the request.' });
+    return null;
+  }
+}
+
+/** Streams an uploaded video to a temporary file, stopping at the size limit. */
+function saveUpload(req) {
+  return new Promise((resolve, reject) => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'viralyst-upload-'));
+    const file = path.join(dir, 'upload.mp4');
+    const out = createWriteStream(file);
+    let size = 0;
+    const fail = (error) => {
+      out.destroy();
+      rmSync(dir, { recursive: true, force: true });
+      reject(error);
+    };
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_UPLOAD_BYTES) {
+        req.destroy();
+        fail(new Error('That video is larger than 300 MB.'));
+      }
+    });
+    req.on('error', fail);
+    req.pipe(out);
+    out.on('finish', () => (size ? resolve({ dir, file }) : fail(new Error('The upload was empty.'))));
+  });
+}
+
+async function reelCheckUpload(req, res) {
+  const type = req.headers['content-type'] ?? '';
+  if (!/^(video\/|application\/octet-stream)/.test(type)) return send(res, 415, { error: 'Please upload a video file, such as MP4 or MOV.' });
+  let upload;
+  try {
+    upload = await saveUpload(req);
+  } catch (error) {
+    return send(res, 400, { error: error.message });
+  }
+  const options = {
+    name: decodeURIComponent(String(req.headers['x-reel-name'] ?? '')).slice(0, 80),
+    goal: decodeURIComponent(String(req.headers['x-reel-goal'] ?? '')).slice(0, 300),
+    audienceType: req.headers['x-audience-type'] === 'business' ? 'business' : 'creator',
+    useAi: config.hasAnthropicKey && req.headers['x-skip-ai'] !== 'true',
+  };
+  const job = startJob((progress) => checkUploadedReel(upload.file, options, progress)
+    .finally(() => rmSync(upload.dir, { recursive: true, force: true })));
+  return send(res, 202, { jobId: job.id });
+}
+
+async function reelCheckLink(req, res) {
+  const input = await readJson(req, res);
+  if (!input) return null;
+  if (!config.apifyToken) return send(res, 400, { error: 'Checking a posted Reel needs an Apify token. You can upload the video file instead.' });
+  const options = {
+    name: String(input.name ?? '').slice(0, 80),
+    goal: String(input.goal ?? '').slice(0, 300),
+    audienceType: input.audienceType === 'business' ? 'business' : 'creator',
+    useAi: config.hasAnthropicKey && input.skipAi !== true,
+  };
+  try {
+    (await import('./reelchecks.js')).parseReelLink(input.url);
+  } catch (error) {
+    return send(res, 400, { error: error.message });
+  }
+  return send(res, 202, { jobId: startJob((progress) => checkLinkedReel(input.url, options, progress)).id });
+}
+
+/** AI tools that work from a saved report. Results that are worth keeping are saved onto it. */
+async function reportTool(req, res, id, tool) {
+  const report = loadReport(id);
+  if (!report) return send(res, 404, { error: 'Report not found.' });
+  if (!config.hasAnthropicKey) return send(res, 400, { error: 'This needs a working Anthropic key. Add one in Settings.' });
+  const input = await readJson(req, res);
+  if (!input) return null;
+  try {
+    if (tool === 'chat') return send(res, 200, await chatAboutReport(report, input.messages));
+    if (tool === 'ideas') {
+      const result = await generateIdeas(report, { topic: input.topic, count: Number(input.count) || 6 });
+      appendToReport(id, 'creations', { type: 'ideas', createdAt: new Date().toISOString(), topic: String(input.topic ?? '').slice(0, 300), ideas: result.ideas });
+      return send(res, 200, result);
+    }
+    if (tool === 'script') {
+      const result = await writeScript(report, input.idea);
+      appendToReport(id, 'creations', { type: 'script', createdAt: new Date().toISOString(), script: result.script });
+      return send(res, 200, result);
+    }
+    if (tool === 'pitch') {
+      const result = await writeBrandPitch(report, input);
+      appendToReport(id, 'creations', { type: 'pitch', createdAt: new Date().toISOString(), brand: String(input.brand ?? '').slice(0, 120), pitch: result.pitch });
+      return send(res, 200, result);
+    }
+  } catch (error) {
+    return send(res, 400, { error: error.message });
+  }
+  return send(res, 404, { error: 'Unknown tool.' });
+}
+
+/** Instagram's own "similar accounts" for a profile, to suggest competitors or similar creators. */
+async function suggestAccounts(res, handleInput) {
+  if (!config.apifyToken) return send(res, 400, { error: 'Suggestions need an Apify token.' });
+  let handleName;
+  try {
+    handleName = parseHandle(handleInput);
+  } catch (error) {
+    return send(res, 400, { error: error.message });
+  }
+  try {
+    const profile = await fetchSnapshot(handleName);
+    return send(res, 200, { handle: profile.handle, category: profile.category, suggestions: profile.relatedProfiles ?? [] });
+  } catch (error) {
+    return send(res, 400, { error: error.message });
+  }
+}
+
 async function handle(req, res) {
   if (!isAllowedHost(req)) return send(res, 403, { error: 'Forbidden' });
   const { pathname } = new URL(req.url, 'http://local');
@@ -228,6 +356,13 @@ async function handle(req, res) {
     }
   }
 
+  if (req.method === 'POST' && pathname === '/api/reel-checks/upload') return reelCheckUpload(req, res);
+  const toolMatch = pathname.match(/^\/api\/reports\/([0-9a-f-]{36})\/(chat|ideas|script|pitch)$/);
+  if (req.method === 'POST' && (toolMatch || pathname === '/api/reel-checks/link')) {
+    if (!req.headers['content-type']?.startsWith('application/json')) return send(res, 415, { error: 'JSON required.' });
+    return toolMatch ? reportTool(req, res, toolMatch[1], toolMatch[2]) : reelCheckLink(req, res);
+  }
+
   const inputsMatch = pathname.match(/^\/api\/reports\/([0-9a-f-]{36})\/inputs$/);
   if (req.method === 'POST' && inputsMatch) {
     if (!req.headers['content-type']?.startsWith('application/json')) return send(res, 415, { error: 'JSON required.' });
@@ -244,6 +379,18 @@ async function handle(req, res) {
     return send(res, 200, { apify: Boolean(config.apifyToken), anthropic: config.hasAnthropicKey, model: config.model, hosted: config.hosted, loginRequired });
   }
   if (pathname === '/api/reports') return send(res, 200, listReports());
+  if (pathname === '/api/reel-checks') return send(res, 200, listReelChecks());
+  if (pathname === '/api/suggest') return suggestAccounts(res, new URL(req.url, 'http://local').searchParams.get('handle'));
+  const checkMatch = pathname.match(/^\/api\/reel-checks\/([0-9a-f-]{36})$/);
+  if (checkMatch) {
+    const check = loadReelCheck(checkMatch[1]);
+    return check ? send(res, 200, check) : send(res, 404, { error: 'Reel check not found.' });
+  }
+  const kitMatch = pathname.match(/^\/media-kit\/([0-9a-f-]{36})$/);
+  if (kitMatch) {
+    const report = loadReport(kitMatch[1]);
+    return report ? send(res, 200, renderMediaKit(report), 'text/html; charset=utf-8') : send(res, 404, { error: 'Report not found.' });
+  }
 
   let match = pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})$/);
   if (match) {

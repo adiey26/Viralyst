@@ -137,6 +137,8 @@ export function normalizeProfile(raw) {
     externalUrl: raw.externalUrl ?? null,
     country: raw.about?.country ?? null,
     picUrl: raw.profilePicUrlHD ?? raw.profilePicUrl ?? null,
+    relatedProfiles: (raw.relatedProfiles ?? []).filter((p) => p?.username && !p.is_private).slice(0, 12)
+      .map((p) => ({ handle: String(p.username).toLowerCase(), fullName: p.full_name ?? '', verified: Boolean(p.is_verified) })),
     url: `https://www.instagram.com/${raw.username}/`,
   };
 }

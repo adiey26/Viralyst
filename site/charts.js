@@ -114,13 +114,14 @@ export function viewsScatter(seriesA, seriesB, describe) {
 
 /** Paired horizontal bars for one breakdown. Faded bars rest on fewer than 3 posts. */
 export function pairedBars(rowsA, rowsB, { format, referenceAt = null, referenceLabel = '', nameA, nameB }) {
-  const rows = rowsA.map((row, i) => ({ label: row.label, a: row, b: rowsB[i] })).filter((row) => row.a.n || row.b.n);
-  const rowHeight = 50;
+  const single = !rowsB;
+  const rows = rowsA.map((row, i) => ({ label: row.label, a: row, b: rowsB?.[i] ?? null })).filter((row) => row.a.n || row.b?.n);
+  const rowHeight = single ? 30 : 50;
   const width = 480;
   const m = { top: referenceAt != null ? 22 : 4, right: 92, bottom: 4, left: 142 };
   const height = m.top + rows.length * rowHeight + m.bottom;
   const svg = s('svg', { class: 'chart', viewBox: `0 0 ${width} ${height}`, role: 'group' });
-  const values = rows.flatMap((row) => [row.a.value, row.b.value]).filter(Number.isFinite);
+  const values = rows.flatMap((row) => [row.a.value, row.b?.value]).filter(Number.isFinite);
   const max = Math.max(...values, referenceAt ?? 0) || 1;
   const x = (v) => m.left + (v / max) * (width - m.left - m.right);
 
@@ -131,8 +132,9 @@ export function pairedBars(rowsA, rowsB, { format, referenceAt = null, reference
 
   rows.forEach((row, i) => {
     const top = m.top + i * rowHeight;
-    svg.append(s('text', { x: m.left - 10, y: top + 25, 'text-anchor': 'end', class: 'category' }, row.label));
-    [['a', row.a, top + 6, nameA], ['b', row.b, top + 26, nameB]].forEach(([series, data, barY, name]) => {
+    svg.append(s('text', { x: m.left - 10, y: top + (single ? 18 : 25), 'text-anchor': 'end', class: 'category' }, row.label));
+    const bars = single ? [['a', row.a, top + 6, nameA]] : [['a', row.a, top + 6, nameA], ['b', row.b, top + 26, nameB]];
+    bars.forEach(([series, data, barY, name]) => {
       const barHeight = 16;
       if (!Number.isFinite(data.value)) {
         svg.append(s('text', { x: m.left + 4, y: barY + 12 }, 'no posts'));
@@ -223,6 +225,46 @@ export function growthChart(seriesA, seriesB, nameA, nameB) {
     band.addEventListener('blur', hide);
     band.setAttribute('tabindex', '-1');
     svg.append(band);
+  }
+  return svg;
+}
+
+/** One Reel second by second: the energy line, cut marks, silent stretches and the weakest stretch. */
+export function timelineChart(stats, label = 'Reel') {
+  const timeline = stats?.timeline ?? [];
+  const width = 960;
+  const height = 180;
+  const m = { top: 22, right: 14, bottom: 28, left: 14 };
+  const seconds = Math.max(stats?.seconds ?? timeline.length, 1);
+  const svg = s('svg', { class: 'chart timeline', viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': `${label}: energy second by second` });
+  if (!timeline.length) return svg;
+  const x = (t) => m.left + (Math.min(t, seconds) / seconds) * (width - m.left - m.right);
+  const y = (v) => height - m.bottom - Math.max(0, Math.min(v, 1)) * (height - m.top - m.bottom);
+  const band = (from, to, cls) => s('rect', { x: x(from), y: m.top, width: Math.max(x(to) - x(from), 2), height: height - m.top - m.bottom, class: cls });
+
+  for (const silence of stats.silences ?? []) svg.append(band(silence.from, silence.to, 'silence-band'));
+  if (stats.weakestStretch) {
+    const weak = stats.weakestStretch;
+    svg.append(band(weak.from, weak.to, 'weak-band'));
+    svg.append(s('text', { x: (x(weak.from) + x(weak.to)) / 2, y: 14, 'text-anchor': 'middle', class: 'weak-label' }, 'Weakest stretch'));
+  }
+  for (let i = 1; i <= 3; i += 1) svg.append(s('line', { x1: m.left, x2: width - m.right, y1: y(i / 4), y2: y(i / 4), class: 'gridline' }));
+
+  const points = timeline.map((p) => [x(p.t + 0.5), y(p.energy ?? 0)]);
+  const line = points.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)} ${py.toFixed(1)}`).join(' ');
+  svg.append(s('path', { d: `${line} L${points.at(-1)[0].toFixed(1)} ${y(0)} L${points[0][0].toFixed(1)} ${y(0)} Z`, class: 'energy-area' }));
+  svg.append(s('path', { d: line, class: 'energy-line' }));
+  for (const cut of stats.cutTimes ?? []) svg.append(s('line', { x1: x(cut), x2: x(cut), y1: height - m.bottom, y2: height - m.bottom + 7, class: 'cut-mark' }));
+
+  const step = seconds <= 15 ? 1 : seconds <= 40 ? 5 : 10;
+  for (let t = 0; t <= seconds; t += step) {
+    svg.append(s('text', { x: x(t), y: height - 6, 'text-anchor': t === 0 ? 'start' : 'middle' }, `${t}s`));
+  }
+  for (const p of timeline) {
+    svg.append(withTooltip(s('rect', { x: x(p.t), y: m.top, width: Math.max(x(p.t + 1) - x(p.t), 1), height: height - m.top - m.bottom, class: 'hit' }), () => ({
+      title: `${p.t}s to ${p.t + 1}s`,
+      lines: [`Energy ${Math.round((p.energy ?? 0) * 100)} of 100`, p.cuts ? `${p.cuts} cut${p.cuts > 1 ? 's' : ''}` : 'No cut'],
+    })));
   }
   return svg;
 }

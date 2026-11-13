@@ -188,6 +188,33 @@ export const PILLARS = [
   },
 ];
 
+// The same framework serves two audiences. Each mode sets its own pillar weights, and a pillar
+// weighted 0 is left out of that mode entirely. Titles change where the meaning changes.
+export const MODES = {
+  business: {
+    label: 'Business',
+    weights: { 1: 8, 2: 8, 3: 10, 4: 14, 5: 10, 6: 8, 7: 8, 8: 8, 9: 10, 10: 6, 11: 4, 12: 4, 13: 2 },
+    titles: {},
+    rivals: 'Competitors',
+  },
+  creator: {
+    label: 'Creator',
+    weights: { 1: 8, 2: 10, 3: 12, 4: 18, 5: 16, 6: 8, 7: 10, 8: 8, 9: 2, 10: 4, 11: 4, 12: 0, 13: 0 },
+    titles: { 10: 'Similar creators', 11: 'Brand-deal readiness' },
+    rivals: 'Similar creators',
+  },
+};
+
+export const modeOf = (report) => (report?.audienceType === 'creator' ? 'creator' : 'business');
+
+/** The pillars that count in a mode, with that mode's weights and titles. */
+export function pillarsFor(mode = 'business') {
+  const settings = MODES[mode] ?? MODES.business;
+  return PILLARS
+    .map((pillar) => ({ ...pillar, weight: settings.weights[pillar.id] ?? 0, title: settings.titles[pillar.id] ?? pillar.title }))
+    .filter((pillar) => pillar.weight > 0);
+}
+
 export const ALL_CHECKS = PILLARS.flatMap((pillar) => pillar.checks.map((item) => ({ ...item, pillarId: pillar.id })));
 export const AI_CHECK_IDS = ALL_CHECKS.filter((item) => item.source === 'ai').map((item) => item.id);
 export const CHECK_BY_ID = new Map(ALL_CHECKS.map((item) => [item.id, item]));
