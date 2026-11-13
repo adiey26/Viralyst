@@ -15,3 +15,6 @@ Thumbs.db
 # Upload packages
 github-upload/
 *.zip
+
+# Client reports
+exports/

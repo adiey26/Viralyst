@@ -119,6 +119,16 @@ Git opens a GitHub sign-in window the first time. Your `.env` keys, `data` folde
 - Audits run on Render's servers, using your Apify and Anthropic credit.
 - To use your own domain, add it in Render and include it in an `ALLOWED_HOSTS` setting, separated by commas.
 
+## Branded PDF reports
+
+Turn any saved audit into a branded Viralyst PDF for the client:
+
+```bash
+npm run pdf -- <report id> [notes.json]
+```
+
+The report ID is the long code at the end of the report's address in the app (`#report/<id>`). The optional notes file adds an analyst's headline, summary, takeaways and recommendations, which is useful when the audit ran without the AI analysis. PDFs are saved to the `exports` folder, which is kept off GitHub because it holds client reports. Edge or Chrome is needed to make the PDF.
+
 ## Tests
 
 ```bash
