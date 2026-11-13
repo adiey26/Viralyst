@@ -57,11 +57,14 @@ const KEYWORD_REPEATS = 5;
 const EVERYDAY_WORDS = new Set(['nice', 'wow', 'great', 'good', 'love', 'amazing', 'awesome', 'super', 'beautiful', 'lovely', 'thanks', 'thankyou', 'cool', 'perfect', 'wonderful', 'yes', 'no', 'true', 'best', 'osm', 'mam', 'maam', 'sir', 'done', 'gorgeous', 'inspiring', 'helpful']);
 
 /** One word repeated by many people is usually a reply to "comment X to get Y", which is not the same as wanting to buy. */
+// One-word price requests ("price", "pp" for "price please") are buyers asking, never a prompt reply.
+const PRICE_WORDS = new Set(['price', 'prices', 'pp', 'pricepls', 'priceplease', 'pricepl', 'rate', 'rates', 'cost', 'kitna', 'kitne', 'kitnekahai', 'kitnekaa', 'कितना', 'कितने', 'कीमत']);
+
 function keywordReplySet(comments) {
   const counts = new Map();
   for (const text of comments) {
     const word = text.trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-    if (word && !/\s/.test(text.trim()) && !EVERYDAY_WORDS.has(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
+    if (word && !/\s/.test(text.trim()) && !EVERYDAY_WORDS.has(word) && !PRICE_WORDS.has(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
   }
   return new Set([...counts].filter(([, count]) => count >= KEYWORD_REPEATS).map(([word]) => word));
 }
@@ -72,7 +75,7 @@ export function classifyComments(comments) {
   return {
     sampled: comments.length,
     questions: comments.filter((text) => text.includes('?')).length,
-    buyingIntent: comments.filter((text) => !isKeywordReply(text) && BUYING.test(text)).length,
+    buyingIntent: comments.filter((text) => !isKeywordReply(text) && (BUYING.test(text) || PRICE_WORDS.has(text.trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')))).length,
     emojiOnly: comments.filter((text) => !LETTER.test(text)).length,
     keywordReplies: comments.filter(isKeywordReply).length,
     replyKeywords: [...keywords].slice(0, 5),

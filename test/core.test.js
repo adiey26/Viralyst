@@ -191,6 +191,10 @@ test('comment classification and audience clues', () => {
   assert.equal(classifyComments(['Book', 'Book']).keywordReplies, 0, 'a couple of repeats is not a prompt');
   assert.equal(classifyComments(Array(9).fill('Nice')).keywordReplies, 0, 'everyday praise is not a prompt');
 
+  const shoppers = classifyComments([...Array(6).fill('Price'), ...Array(5).fill('pp'), 'Price?', 'kitne ka hai']);
+  assert.equal(shoppers.keywordReplies, 0, 'repeated price requests are buyers, not prompt replies');
+  assert.equal(shoppers.buyingIntent, 13);
+
   const audience = buildAudience({ country: null }, [post('a', {
     hashtags: ['Mumbai', 'coffee'], location: 'Pune', commentSample: ['बहुत बढ़िया', 'क्या बात है', 'Nice', '🔥'],
   })]);
